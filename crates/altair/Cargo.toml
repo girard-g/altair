@@ -1,0 +1,17 @@
+[package]
+name = "altair"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "High-performance local LLM runtime"
+repository.workspace = true
+
+[dependencies]
+altair-core.workspace = true
+altair-inference.workspace = true
+altair-api.workspace = true
+altair-model-registry.workspace = true
+
+[lib]
+name = "altair"
+path = "src/lib.rs"

@@ -1,0 +1,31 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Altair specific
+.altair/
+models/
+*.gguf
+*.bin
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+*.md

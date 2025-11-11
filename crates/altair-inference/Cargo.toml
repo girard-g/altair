@@ -1,0 +1,30 @@
+[package]
+name = "altair-inference"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+altair-core.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+parking_lot.workspace = true
+rayon.workspace = true
+futures.workspace = true
+async-trait.workspace = true
+
+# llama.cpp bindings
+llama-cpp-2 = "0.1"
+
+[features]
+default = []
+cuda = ["llama-cpp-2/cuda"]
+metal = ["llama-cpp-2/metal"]
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# metal-rs = "0.27"  # For Metal backend detection
+
+[target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
+# For CUDA backend detection

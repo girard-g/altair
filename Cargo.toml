@@ -1,0 +1,93 @@
+[workspace]
+members = [
+    "crates/altair-core",
+    "crates/altair-inference",
+    "crates/altair-api",
+    "crates/altair-model-registry",
+    "crates/altair-cli",
+    "crates/altair",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT OR Apache-2.0"
+authors = ["Altair Contributors"]
+repository = "https://github.com/yourusername/altair"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io", "codec"] }
+
+# HTTP server
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace", "cors", "compression-gzip"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Async utilities
+async-trait = "0.1"
+futures = "0.3"
+async-stream = "0.3"
+
+# HTTP client
+reqwest = { version = "0.11", features = ["stream", "rustls-tls", "json"] }
+
+# Hashing
+sha2 = "0.10"
+
+# Progress bars
+indicatif = "0.17"
+
+# Async utilities for streaming
+futures-util = "0.3"
+
+# CLI
+clap = { version = "4.4", features = ["derive"] }
+
+# Concurrency
+parking_lot = "0.12"
+rayon = "1.8"
+dashmap = "5.5"
+
+# Utilities
+uuid = { version = "1.6", features = ["v4", "serde"] }
+toml = "0.8"
+dirs = "5.0"
+chrono = { version = "0.4", features = ["serde"] }
+
+# Internal crates
+altair-core = { path = "crates/altair-core" }
+altair-inference = { path = "crates/altair-inference" }
+altair-api = { path = "crates/altair-api" }
+altair-model-registry = { path = "crates/altair-model-registry" }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+strip = true
+panic = "abort"
+
+[profile.release-with-debug]
+inherits = "release"
+strip = false
+debug = true
+
+[profile.dev]
+opt-level = 0
+debug = true
