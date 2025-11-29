@@ -100,7 +100,3 @@ cargo bench
 # Start development server
 cargo run --bin altair-cli -- serve
 ```
-
-## License
-
-MIT OR Apache-2.0
