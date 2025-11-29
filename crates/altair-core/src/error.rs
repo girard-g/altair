@@ -53,6 +53,18 @@ pub enum AltairError {
 
     #[error("Rate limit exceeded")]
     RateLimitExceeded,
+
+    #[error("GPU detection failed: {0}")]
+    GpuDetectionFailed(String),
+
+    #[error("CUDA not available: {0}")]
+    CudaNotAvailable(String),
+
+    #[error("Metal not available: {0}")]
+    MetalNotAvailable(String),
+
+    #[error("GPU validation failed: {0}")]
+    GpuValidationFailed(String),
 }
 
 pub type Result<T> = std::result::Result<T, AltairError>;

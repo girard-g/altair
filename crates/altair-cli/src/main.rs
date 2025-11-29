@@ -13,10 +13,6 @@ struct Cli {
     #[command(subcommand)]
     command: Commands,
 
-    /// Configuration file path
-    #[arg(long, global = true)]
-    config: Option<PathBuf>,
-
     /// Log level (trace, debug, info, warn, error)
     #[arg(long, global = true, default_value = "info")]
     log_level: String,
@@ -151,8 +147,14 @@ async fn serve_command(
         detect_gpu_backend()
     } else {
         match gpu.as_str() {
-            "cuda" => altair_core::GpuBackend::Cuda { device_count: 1 },
-            "metal" => altair_core::GpuBackend::Metal,
+            "cuda" => altair_core::GpuBackend::Cuda {
+                device_count: 1,
+                devices: None,
+            },
+            "metal" => altair_core::GpuBackend::Metal {
+                device_name: None,
+                device_memory_gb: None,
+            },
             "cpu" => altair_core::GpuBackend::None,
             _ => {
                 tracing::warn!("Unknown GPU backend '{}', using auto-detection", gpu);
@@ -164,10 +166,10 @@ async fn serve_command(
     tracing::info!("Using GPU backend: {}", gpu_backend);
 
     // Initialize GPU backend
-    init_gpu_backend(gpu_backend)?;
+    init_gpu_backend(gpu_backend.clone())?;
 
     // Create inference backend
-    let backend = Arc::new(LlamaCppBackend::new(gpu_backend)?);
+    let backend = Arc::new(LlamaCppBackend::new(gpu_backend.clone())?);
 
     // Create inference executor
     let executor = Arc::new(InferenceExecutor::new(backend, max_concurrent)?);
@@ -186,7 +188,20 @@ async fn serve_command(
     tracing::info!("✓ GPU backend: {}", gpu_backend);
     tracing::info!("✓ Max concurrent requests: {}", max_concurrent);
 
-    axum::serve(listener, app).await?;
+    // Create graceful shutdown signal
+    let shutdown_signal = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+        tracing::info!("Received shutdown signal, draining requests...");
+    };
+
+    // Serve with graceful shutdown
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal)
+        .await?;
+
+    tracing::info!("Shutting down gracefully...");
 
     Ok(())
 }

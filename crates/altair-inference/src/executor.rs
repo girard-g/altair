@@ -28,6 +28,8 @@ struct ModelState {
     active_requests: usize,
     /// Track if model is in a failed state
     failed: bool,
+    /// Track if model is being unloaded (prevents new requests)
+    unloading: bool,
 }
 
 impl InferenceExecutor {
@@ -78,6 +80,7 @@ impl InferenceExecutor {
                     model_id,
                     active_requests: 0,
                     failed: false,
+                    unloading: false,
                 },
             );
         }
@@ -90,18 +93,30 @@ impl InferenceExecutor {
     pub async fn unload_model(&self, model_id: ModelId) -> Result<()> {
         tracing::info!("Unloading model: {}", model_id);
 
-        // Check if model has active requests
+        // Acquire write lock and mark model as unloading to prevent TOCTOU race
+        // This prevents new requests from starting while we unload
         {
-            let models = self.models.read();
-            if let Some(state) = models.get(&model_id) {
-                if state.active_requests > 0 {
-                    return Err(AltairError::InferenceFailed(format!(
-                        "Cannot unload model with {} active requests",
-                        state.active_requests
+            let mut models = self.models.write();
+
+            match models.get_mut(&model_id) {
+                None => {
+                    return Err(AltairError::ModelNotFound(format!(
+                        "Model {} not found",
+                        model_id
                     )));
                 }
+                Some(state) => {
+                    if state.active_requests > 0 {
+                        return Err(AltairError::InferenceFailed(format!(
+                            "Cannot unload model with {} active requests",
+                            state.active_requests
+                        )));
+                    }
+                    // Mark as unloading to prevent new requests
+                    state.unloading = true;
+                }
             }
-        }
+        } // Lock dropped here
 
         // Unload through backend with proper error handling
         match self.backend.unload_model(model_id).await {
@@ -134,7 +149,7 @@ impl InferenceExecutor {
         model_id: ModelId,
         request: InferenceRequest,
     ) -> Result<(tokio::sync::mpsc::UnboundedReceiver<TokenResponse>, tokio::task::JoinHandle<Result<CompletionResponse>>)> {
-        // Verify model is loaded and not in failed state
+        // Verify model is loaded and not in failed or unloading state
         {
             let models = self.models.read();
             match models.get(&model_id) {
@@ -142,6 +157,12 @@ impl InferenceExecutor {
                 Some(state) if state.failed => {
                     return Err(AltairError::InferenceFailed(format!(
                         "Model {} is in failed state and cannot be used",
+                        model_id
+                    )));
+                }
+                Some(state) if state.unloading => {
+                    return Err(AltairError::InferenceFailed(format!(
+                        "Model {} is being unloaded and cannot accept new requests",
                         model_id
                     )));
                 }

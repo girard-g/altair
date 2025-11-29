@@ -24,7 +24,23 @@ cuda = ["llama-cpp-2/cuda"]
 metal = ["llama-cpp-2/metal"]
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# metal-rs = "0.27"  # For Metal backend detection
+# metal-rs = "0.27"  # For Metal backend detection (uncomment to enable)
 
 [target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
 # For CUDA backend detection
+
+[dev-dependencies]
+tempfile = "3.0"
+serial_test = "3.0"
+
+[[test]]
+name = "gpu_detection_tests"
+path = "tests/gpu_detection_tests.rs"
+
+[[test]]
+name = "gpu_initialization_tests"
+path = "tests/gpu_initialization_tests.rs"
+
+[[test]]
+name = "gpu_inference_tests"
+path = "tests/gpu_inference_tests.rs"

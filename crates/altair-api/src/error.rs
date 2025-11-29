@@ -18,19 +18,56 @@ impl From<AltairError> for ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, message) = match self.0 {
+            // Client errors (4xx)
             AltairError::ModelNotFound(ref msg) => (StatusCode::NOT_FOUND, msg.clone()),
             AltairError::ModelAlreadyLoaded(ref msg) => (StatusCode::CONFLICT, msg.clone()),
+            AltairError::InvalidModelFile(ref msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            AltairError::InvalidConfig(ref msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            AltairError::Serialization(ref e) => {
+                (StatusCode::BAD_REQUEST, format!("Invalid request format: {}", e))
+            }
             AltairError::RequestTimeout => {
                 (StatusCode::REQUEST_TIMEOUT, "Request timeout".to_string())
             }
-            AltairError::AuthFailed => (StatusCode::UNAUTHORIZED, "Authentication failed".to_string()),
+            AltairError::AuthFailed => {
+                (StatusCode::UNAUTHORIZED, "Authentication failed".to_string())
+            }
             AltairError::RateLimitExceeded => {
                 (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded".to_string())
             }
-            _ => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Internal server error".to_string(),
-            ),
+
+            // Service unavailable (503) - temporary failures
+            AltairError::GpuInitFailed(ref msg) => (StatusCode::SERVICE_UNAVAILABLE, msg.clone()),
+            AltairError::OutOfMemory(ref msg) => (StatusCode::SERVICE_UNAVAILABLE, msg.clone()),
+            AltairError::GpuDetectionFailed(ref msg) => {
+                (StatusCode::SERVICE_UNAVAILABLE, msg.clone())
+            }
+            AltairError::CudaNotAvailable(ref msg) => {
+                (StatusCode::SERVICE_UNAVAILABLE, msg.clone())
+            }
+            AltairError::MetalNotAvailable(ref msg) => {
+                (StatusCode::SERVICE_UNAVAILABLE, msg.clone())
+            }
+            AltairError::GpuValidationFailed(ref msg) => {
+                (StatusCode::SERVICE_UNAVAILABLE, msg.clone())
+            }
+
+            // Bad gateway (502) - upstream failures
+            AltairError::NetworkError(ref msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
+            AltairError::DownloadFailed(ref msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
+            AltairError::Http(ref msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
+
+            // Internal errors (500)
+            AltairError::InferenceFailed(ref msg) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, msg.clone())
+            }
+            AltairError::FileSystemError(ref msg) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, msg.clone())
+            }
+            AltairError::Io(ref e) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, format!("I/O error: {}", e))
+            }
+            AltairError::Ffi(ref msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
         };
 
         (status, Json(json!({ "error": message }))).into_response()

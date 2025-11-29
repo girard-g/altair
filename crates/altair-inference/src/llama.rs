@@ -43,8 +43,8 @@ impl LlamaInstance {
 
         // Configure model parameters
         let n_gpu_layers = match gpu_backend {
-            GpuBackend::Cuda { .. } | GpuBackend::Metal => 999, // Offload all layers
-            GpuBackend::None => 0,                              // CPU only
+            GpuBackend::Cuda { .. } | GpuBackend::Metal { .. } => 999, // Offload all layers
+            GpuBackend::None => 0,                                      // CPU only
         };
 
         let model_params = LlamaModelParams::default().with_n_gpu_layers(n_gpu_layers);
@@ -136,6 +136,9 @@ impl LlamaInstance {
         let start = std::time::Instant::now();
         let mut n_cur = tokens.len();
 
+        // Track the actual stop reason
+        let mut stop_reason = StopReason::EndOfText;
+
         for _ in 0..max_tokens {
             // Sample next token
             let token = self.sample_token(&ctx, temperature, top_p, top_k)?;
@@ -144,6 +147,7 @@ impl LlamaInstance {
             let llama_token = LlamaToken(token);
             if self.model.is_eog_token(llama_token) {
                 tracing::info!("EOS token generated, stopping");
+                stop_reason = StopReason::EndOfText;
                 break;
             }
 
@@ -175,7 +179,9 @@ impl LlamaInstance {
                 .is_err()
             {
                 tracing::warn!("Failed to send token to channel - receiver dropped");
-                // Early exit - don't accumulate more text
+                // Client disconnected - use EndOfText as stop reason
+                // (Could add StopReason::ClientDisconnected variant if needed)
+                stop_reason = StopReason::EndOfText;
                 break;
             }
 
@@ -189,6 +195,7 @@ impl LlamaInstance {
                 .any(|s| full_text.ends_with(s))
             {
                 tracing::info!("Stop sequence detected");
+                stop_reason = StopReason::StopSequence;
                 break;
             }
 
@@ -204,6 +211,11 @@ impl LlamaInstance {
             })?;
 
             n_cur += 1;
+        }
+
+        // Override stop reason if max tokens reached
+        if generated_tokens >= max_tokens {
+            stop_reason = StopReason::MaxTokens;
         }
 
         let duration = start.elapsed();
@@ -224,11 +236,7 @@ impl LlamaInstance {
             text: full_text,
             tokens_generated: generated_tokens,
             tokens_per_second,
-            stop_reason: if generated_tokens >= max_tokens {
-                StopReason::MaxTokens
-            } else {
-                StopReason::EndOfText
-            },
+            stop_reason,
         })
     }
 

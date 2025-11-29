@@ -138,14 +138,39 @@ pub enum StopReason {
     EndOfText,
 }
 
+/// CUDA device information
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CudaDeviceInfo {
+    pub device_id: u32,
+    pub name: String,
+    pub compute_capability: (u32, u32),
+    pub total_memory_bytes: u64,
+}
+
+/// Metal device information
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MetalDeviceInfo {
+    pub name: String,
+    pub recommended_max_working_set_size: u64,
+}
+
 /// GPU backend detection
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GpuBackend {
     #[serde(rename = "cuda")]
-    Cuda { device_count: u32 },
+    Cuda {
+        device_count: u32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        devices: Option<Vec<CudaDeviceInfo>>,
+    },
 
     #[serde(rename = "metal")]
-    Metal,
+    Metal {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        device_name: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        device_memory_gb: Option<u64>,
+    },
 
     #[serde(rename = "cpu")]
     None,
@@ -154,8 +179,25 @@ pub enum GpuBackend {
 impl std::fmt::Display for GpuBackend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GpuBackend::Cuda { device_count } => write!(f, "CUDA ({} devices)", device_count),
-            GpuBackend::Metal => write!(f, "Metal"),
+            GpuBackend::Cuda { device_count, devices } => {
+                write!(f, "CUDA ({} devices)", device_count)?;
+                if let Some(devs) = devices {
+                    if let Some(first) = devs.first() {
+                        write!(f, " - {}", first.name)?;
+                    }
+                }
+                Ok(())
+            }
+            GpuBackend::Metal { device_name, device_memory_gb } => {
+                write!(f, "Metal")?;
+                if let Some(name) = device_name {
+                    write!(f, " - {}", name)?;
+                }
+                if let Some(mem_gb) = device_memory_gb {
+                    write!(f, " ({}GB)", mem_gb)?;
+                }
+                Ok(())
+            }
             GpuBackend::None => write!(f, "CPU"),
         }
     }
@@ -251,11 +293,34 @@ mod tests {
 
     #[test]
     fn test_gpu_backend_display() {
-        let cuda = GpuBackend::Cuda { device_count: 2 };
+        let cuda = GpuBackend::Cuda {
+            device_count: 2,
+            devices: None,
+        };
         assert_eq!(cuda.to_string(), "CUDA (2 devices)");
 
-        let metal = GpuBackend::Metal;
+        let cuda_with_info = GpuBackend::Cuda {
+            device_count: 1,
+            devices: Some(vec![CudaDeviceInfo {
+                device_id: 0,
+                name: "NVIDIA RTX 4090".to_string(),
+                compute_capability: (8, 9),
+                total_memory_bytes: 24 * 1024 * 1024 * 1024,
+            }]),
+        };
+        assert!(cuda_with_info.to_string().contains("NVIDIA RTX 4090"));
+
+        let metal = GpuBackend::Metal {
+            device_name: None,
+            device_memory_gb: None,
+        };
         assert_eq!(metal.to_string(), "Metal");
+
+        let metal_with_info = GpuBackend::Metal {
+            device_name: Some("Apple M3 Max".to_string()),
+            device_memory_gb: Some(64),
+        };
+        assert!(metal_with_info.to_string().contains("Apple M3 Max"));
 
         let cpu = GpuBackend::None;
         assert_eq!(cpu.to_string(), "CPU");

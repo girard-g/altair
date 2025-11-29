@@ -1,5 +1,4 @@
 use altair_core::{error::*, types::*};
-use async_trait::async_trait;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use parking_lot::RwLock;
 use std::collections::HashMap;
@@ -64,7 +63,7 @@ impl InferenceBackend for LlamaCppBackend {
         let instance = LlamaInstance::load(
             self.backend.clone(),
             &spec.path,
-            self.gpu_backend,
+            self.gpu_backend.clone(),
             spec.context_size,
         )?;
         let model_id = ModelId::new();
